@@ -1,0 +1,7 @@
+{
+  "name": "rift-shooter",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -l 3000"
+  }
+}

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rift Shooter · Polvo y Plomo</title>
+  <meta name="description" content="Rift Shooter: FPS de arenas por rondas en el Salvaje Oeste, hecho con Three.js.">
+  <link rel="preload" href="assets/fonts/rye-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/oswald-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body class="menu-open">
+  <canvas id="game"></canvas>
+
+  <!-- ============ capas de efectos ============ -->
+  <div id="fx">
+    <div id="vignette"></div>
+    <div id="lowhp"></div>
+    <div id="dmg-flash"></div>
+    <div id="heal-flash"></div>
+    <div id="scanlines"></div><!-- grano de película antigua en los menús -->
+  </div>
+
+  <!-- ============ HUD ============ -->
+  <div id="hud" class="hidden">
+    <div class="hud-panel" id="hud-round">
+      <div class="star">
+        <svg viewBox="0 0 100 100"><path d="M50 4l11.5 25.7 28-3-16.5 22.8 16.5 22.8-28-3L50 96 38.5 70.3l-28 3L27 50 10.5 27.2l28 3z"/><circle cx="50" cy="50" r="22"/></svg>
+        <div id="round-num">01</div>
+      </div>
+      <div class="round-info">
+        <div class="hud-label">RONDA</div>
+        <div class="hud-sub"><span id="enemies-left">0</span> FORAJIDOS</div>
+        <div class="bar thin"><div id="wave-progress"></div></div>
+      </div>
+    </div>
+
+    <div id="boss" class="hidden">
+      <div class="boss-name">★ SE BUSCA · <span id="boss-label">SHERIFF DE HIERRO</span> ★</div>
+      <div class="bar boss-bar"><div id="boss-fill"></div></div>
+    </div>
+
+    <div class="hud-panel right" id="hud-score">
+      <div class="hud-label">RECOMPENSA</div>
+      <div class="score-row">$<span id="score">0</span></div>
+      <div id="combo" class="hidden">RACHA <b>x2</b></div>
+    </div>
+
+    <div class="hud-panel" id="hud-health">
+      <div class="hp-row">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M12 21s-7.5-4.6-9.5-9.3C.9 8 3.2 4 7 4c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.8 0 6.1 4 4.5 7.7C19.5 16.4 12 21 12 21z"/></svg>
+        <span id="hp-text">100</span>
+      </div>
+      <div class="segbar" id="hp-bar"></div>
+    </div>
+
+    <div class="hud-panel right" id="hud-ammo">
+      <div id="weapon-name">REVÓLVER</div>
+      <div class="ammo-wrap">
+        <div id="cylinder" class="hidden"></div>
+        <div class="ammo-row"><span id="ammo-mag">6</span><span class="sep">/</span><span id="ammo-res">48</span></div>
+      </div>
+      <div class="bar thin"><div id="reload-fill"></div></div>
+      <div id="weapon-slots"></div>
+    </div>
+
+    <div id="crosshair">
+      <i class="ch t"></i><i class="ch b"></i><i class="ch l"></i><i class="ch r"></i><i class="dot"></i>
+    </div>
+    <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+    <div id="dmg-dirs"></div>
+    <div id="announcer"><div id="ann-top"></div><div id="ann-main"></div><div id="ann-sub"></div></div>
+    <div id="killfeed"></div>
+    <div id="popups"></div>
+    <div id="hint"></div>
+  </div>
+
+  <!-- ============ pantallas ============ -->
+  <div id="screens">
+
+    <!-- Menú principal + carga -->
+    <section id="screen-main" class="screen active">
+      <header class="topbar">
+        <span class="tag">TELÉGRAFO DEL RIFT · <b>1879</b></span>
+        <span class="tag status"><i class="led"></i> <span id="sys-status">ENGRASANDO LOS REVÓLVERES</span></span>
+      </header>
+
+      <div class="main-grid">
+        <div class="brand">
+          <div class="brand-kicker">✦ TERRITORIO DE NUEVO MÉXICO · AÑO 1879 ✦</div>
+          <h1 class="logo">RIFT</h1>
+          <h2 class="logo-sub"><span class="rule"></span>SHOOTER<span class="rule"></span></h2>
+          <div class="tagline">POLVO · PLOMO · ACERO</div>
+          <p class="lore">Algo se abrió en el fondo del cañón. Desde entonces, autómatas de hierro bajan por los portales de fuego
+            cada atardecer. Desenfunda, recoge las <b class="gold">balas doradas</b> y no dejes que te rodeen, forastero.</p>
+
+          <div id="loader">
+            <div class="loader-head"><span id="load-text">CARGANDO MUNICIÓN…</span><span id="load-pct">0%</span></div>
+            <div class="bar loader-bar"><div id="load-fill"></div></div>
+            <div id="load-file">—</div>
+          </div>
+
+          <nav class="menu" id="main-menu">
+            <button class="btn primary" id="btn-play" disabled><span class="btn-label">CARGANDO…</span><span class="btn-arrow">➜</span></button>
+            <button class="btn" data-open="settings"><span class="btn-label">AJUSTES</span></button>
+            <button class="btn" data-open="controls"><span class="btn-label">CÓMO SE JUEGA</span></button>
+          </nav>
+          <div id="best" class="best"></div>
+        </div>
+
+        <aside class="side">
+          <div class="poster" id="panel-wanted">
+            <div class="poster-head">SE BUSCA</div>
+            <div class="poster-sub">VIVO O DESGUAZADO</div>
+            <svg class="poster-img" viewBox="0 0 200 150" aria-hidden="true">
+              <defs><filter id="sketch"><feTurbulence baseFrequency=".9" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.2"/></filter></defs>
+              <g filter="url(#sketch)" fill="none" stroke="#3a2414" stroke-width="2.4" stroke-linejoin="round">
+                <path d="M62 30h76l10 18v50l-12 20H64l-12-20V48z" fill="#d9bf8c"/>
+                <rect x="70" y="60" width="60" height="18" rx="4" fill="#3a2414"/>
+                <circle cx="86" cy="69" r="5" fill="#b8361d" stroke="none"/><circle cx="114" cy="69" r="5" fill="#b8361d" stroke="none"/>
+                <path d="M80 96h40M86 96v8M100 96v8M114 96v8"/>
+                <path d="M100 30V14M92 14h16"/><circle cx="100" cy="10" r="4" fill="#b8361d"/>
+                <path d="M40 34l22 10M160 34l-22 10"/>
+                <path d="M44 22c20-8 92-8 112 0l-6 10H50z" fill="#5a3520"/>
+              </g>
+            </svg>
+            <div class="poster-name">EL SHERIFF DE HIERRO</div>
+            <div class="poster-reward">RECOMPENSA <b>$5.000</b></div>
+            <div class="poster-foot">Y SU BANDA DE AUTÓMATAS</div>
+          </div>
+
+          <div class="paper card hidden" id="panel-controls">
+            <div class="card-title">— BANDO DEL SHERIFF —</div>
+            <ul class="keys">
+              <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Moverse</span></li>
+              <li><kbd>SHIFT</kbd><span>Correr</span></li>
+              <li><kbd>ESPACIO</kbd><span>Saltar</span></li>
+              <li><kbd>CLIC IZQ</kbd><span>Disparar</span></li>
+              <li><kbd>CLIC DER</kbd><span>Apuntar</span></li>
+              <li><kbd>R</kbd><span>Recargar</span></li>
+              <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>RUEDA</kbd><span>Cambiar arma</span></li>
+              <li><kbd>ESC</kbd><span>Pausa</span></li>
+            </ul>
+            <div class="card-note">Apunta al <b>ojo</b> de los autómatas: es su punto débil.</div>
+          </div>
+
+          <div class="paper card hidden" id="panel-settings">
+            <div class="card-title">— AJUSTES —</div>
+            <label class="field">Sensibilidad <output id="o-sens">1.0</output><input type="range" id="s-sens" min="0.3" max="2.5" step="0.1" value="1"></label>
+            <label class="field">Volumen <output id="o-vol">60</output><input type="range" id="s-vol" min="0" max="1" step="0.05" value="0.6"></label>
+            <label class="field">Campo de visión <output id="o-fov">75</output><input type="range" id="s-fov" min="65" max="100" step="1" value="75"></label>
+            <div class="field">Calidad gráfica
+              <div class="seg" id="s-quality">
+                <button data-q="low">BAJA</button><button data-q="medium">MEDIA</button><button data-q="high">ALTA</button>
+              </div>
+            </div>
+            <label class="field check"><input type="checkbox" id="s-shake" checked> Temblor de cámara</label>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="ticker"><div class="ticker-track" id="ticker"></div></footer>
+    </section>
+
+    <!-- Pausa -->
+    <section id="screen-pause" class="screen">
+      <div class="paper modal">
+        <div class="modal-kicker">— EL DUELO PUEDE ESPERAR —</div>
+        <h2 class="modal-title">ALTO EL FUEGO</h2>
+        <div class="stats small" id="pause-stats"></div>
+        <nav class="menu">
+          <button class="btn primary" id="btn-resume"><span class="btn-label">VOLVER AL DUELO</span><span class="cooldown"></span></button>
+          <button class="btn" id="btn-restart"><span class="btn-label">EMPEZAR DE NUEVO</span><span class="cooldown"></span></button>
+          <button class="btn" data-open="settings-pause"><span class="btn-label">AJUSTES</span></button>
+          <button class="btn ghost" id="btn-quit"><span class="btn-label">VOLVER AL PUEBLO</span></button>
+        </nav>
+        <div class="modal-settings hidden" id="pause-settings-slot"></div>
+      </div>
+    </section>
+
+    <!-- Fin de partida -->
+    <section id="screen-over" class="screen">
+      <div class="paper modal wide">
+        <div class="modal-kicker danger">— AQUÍ YACE UN FORASTERO —</div>
+        <h2 class="modal-title">HAS MORDIDO EL POLVO</h2>
+        <div id="new-record" class="hidden">★ NUEVA MEJOR RECOMPENSA ★</div>
+        <div class="stats" id="over-stats"></div>
+        <nav class="menu row">
+          <button class="btn primary" id="btn-retry"><span class="btn-label">OTRO DUELO</span><span class="cooldown"></span></button>
+          <button class="btn ghost" id="btn-menu"><span class="btn-label">VOLVER AL PUEBLO</span></button>
+        </nav>
+      </div>
+    </section>
+  </div>
+
+  <div id="wipe"></div>
+  <div id="boot-error" class="hidden"></div>
+
+  <script>
+    (function () {
+      var box = document.getElementById('boot-error');
+      function fail(msg) { box.textContent = msg; box.classList.remove('hidden'); }
+      if (location.protocol === 'file:') {
+        fail('Has abierto index.html directamente (file://). El navegador bloquea así los módulos y las texturas. ' +
+             'Ejecuta "npm start" (o "python3 -m http.server 3000") en la carpeta y abre http://localhost:3000');
+      }
+      window.addEventListener('error', function (e) {
+        if (!window.__riftReady) fail('Error al iniciar el juego: ' + (e.message || 'revisa la consola (F12)'));
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        if (!window.__riftReady) fail('Error al cargar: ' + ((e.reason && e.reason.message) || e.reason));
+      });
+    })();
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
